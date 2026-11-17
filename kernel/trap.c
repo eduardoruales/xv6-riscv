@@ -82,8 +82,23 @@ usertrap(void)
     kexit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if (which_dev == 2)
-    yield();
+  if (which_dev == 2){
+    struct proc *p = myproc();
+    if(p != 0 && p->state == RUNNING){
+      acquire(&p->lock);
+      p->ticks_used++;
+      int quantum = (p->queue == 0) ? 1 : (p->queue == 1 ? 2 : 4);
+      if(p->ticks_used >= quantum){
+        p->ticks_used = 0;
+        if(p->queue < 2)
+          p->queue++;
+        release(&p->lock);
+        yield();
+      } else {
+        release(&p->lock);
+      }
+    }
+  }
 
   prepare_return();
 
@@ -153,9 +168,22 @@ kerneltrap()
     panic("kerneltrap");
   }
 
-  // give up the CPU if this is a timer interrupt.
-  if (which_dev == 2 && myproc() != 0)
-    yield();
+    // give up the CPU if this is a timer interrupt.
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
+    struct proc *p = myproc();
+    acquire(&p->lock);
+    p->ticks_used++;
+    int quantum = (p->queue == 0) ? 1 : (p->queue == 1 ? 2 : 4);
+    if(p->ticks_used >= quantum){
+      p->ticks_used = 0;
+      if(p->queue < 2)
+        p->queue++;
+      release(&p->lock);
+      yield();
+    } else {
+      release(&p->lock);
+    }
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.

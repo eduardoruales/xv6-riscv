@@ -1,8 +1,8 @@
 # Exploración de la planificación de procesos en XV6
-* **Eduardo Andrés Ruales David
-* **Repositorio (Fork): ** https://github.com/eduardoruales/xv6-riscv.git
+* **Eduardo Andrés Ruales David**
+* **Repositorio (Fork):** https://github.com/eduardoruales/xv6-riscv.git
 ---
-## 1. Preparar el repositorio y en entorno
+## 1. Preparar el repositorio y el entorno
 
 ### 1.1 Fork, clonación y datos del entorno
 * **Repositorio base:** `https://github.com/mit-pdos/xv6-riscv`

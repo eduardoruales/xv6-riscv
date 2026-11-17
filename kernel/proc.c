@@ -124,6 +124,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->queue = 0;
+  p->ticks_used = 0;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -430,6 +432,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  static uint last_boost = 0;
 
   c->proc = 0;
   for (;;) {
@@ -441,33 +444,46 @@ scheduler(void)
     intr_on();
     intr_off();
 
-    int found = 0;
-    for (p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if (p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    acquire(&tickslock);
+    uint current_ticks = ticks;
+    release(&tickslock);
 
-        // Don't re-enable interrupts on release.
-        mycpu()->intena = 0;
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+    if(current_ticks - last_boost >= 100){
+      last_boost = current_ticks;
+      for(p = proc; p <&proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state != UNUSED){
+          p->queue = 0;
+          p->ticks_used = 0;
+        }
+        release(&p->lock);
       }
-      release(&p->lock);
     }
-    if (found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
+
+        int found = 0;
+    for(int level = 0; level < 3 && !found; level++){
+      for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && p->queue == level){
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+          c->proc = 0;
+          found = 1;
+          release(&p->lock);
+          break;
+        }
+        release(&p->lock);
+      }
+    }
+
+    if(found == 0){
       asm volatile("wfi");
     }
   }
 }
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
